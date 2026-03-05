@@ -1,0 +1,20 @@
+# 前端
+frontend/node_modules/
+frontend/.env
+frontend/.env.local
+frontend/dist/
+frontend/build/
+
+# 后端
+backend/node_modules/
+backend/.env
+backend/.env.local
+backend/dist/
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 编辑器
+.vscode/
+.idea/
