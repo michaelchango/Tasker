@@ -1,116 +1,96 @@
-import { getDb, saveDb } from '../db.js';
+import { getDb } from '../db.js';
 
 const Project = {
-  getAllBySpace(spaceId) {
+  async getAllBySpace(spaceId) {
     const db = getDb();
     if (!db) return [];
-    const stmt = db.prepare('SELECT * FROM projects WHERE space_id = ? ORDER BY sort_order ASC, created_at DESC');
-    stmt.bind([spaceId]);
-    const results = [];
-    while (stmt.step()) {
-      results.push(stmt.getAsObject());
-    }
-    stmt.free();
-    return results;
+    return await db.all(
+      'SELECT * FROM projects WHERE space_id = $1 ORDER BY sort_order ASC, created_at DESC',
+      [spaceId]
+    );
   },
 
-  getById(id) {
+  async getById(id) {
     const db = getDb();
     if (!db) return null;
-    const stmt = db.prepare('SELECT * FROM projects WHERE id = ?');
-    stmt.bind([id]);
-    let result = null;
-    if (stmt.step()) {
-      result = stmt.getAsObject();
-    }
-    stmt.free();
+    return await db.get('SELECT * FROM projects WHERE id = $1', [id]);
+  },
+
+  async create(spaceId, project) {
+    const db = getDb();
+    if (!db) return null;
+    
+    const result = await db.get(
+      `INSERT INTO projects (space_id, name, type, description, status, start_date, end_date, remarks, dev, test, ops, release_date, docs_url)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
+      [
+        spaceId,
+        project.name,
+        project.type || 'general',
+        project.description || '',
+        project.status || 'planning',
+        project.start_date || null,
+        project.end_date || null,
+        project.remarks || '',
+        project.dev || '',
+        project.test || '',
+        project.ops || '',
+        project.release_date || null,
+        project.docs_url || ''
+      ]
+    );
     return result;
   },
 
-  create(spaceId, project) {
+  async update(id, project) {
     const db = getDb();
     if (!db) return null;
     
-    const stmt = db.prepare(`
-      INSERT INTO projects (space_id, name, type, description, status, start_date, end_date, remarks, dev, test, ops, release_date, docs_url)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-    stmt.run([
-      spaceId,
-      project.name,
-      project.type || 'general',
-      project.description || '',
-      project.status || 'planning',
-      project.start_date || null,
-      project.end_date || null,
-      project.remarks || '',
-      project.dev || '',
-      project.test || '',
-      project.ops || '',
-      project.release_date || null,
-      project.docs_url || ''
-    ]);
-    stmt.free();
-    saveDb();
-    
-    const lastId = db.exec('SELECT last_insert_rowid() as id')[0].values[0][0];
-    return this.getById(lastId);
+    await db.exec(
+      `UPDATE projects 
+       SET name = $1, type = $2, description = $3, status = $4, start_date = $5, end_date = $6, 
+           remarks = $7, dev = $8, test = $9, ops = $10, release_date = $11, docs_url = $12
+       WHERE id = $13`,
+      [
+        project.name,
+        project.type || 'general',
+        project.description || '',
+        project.status || 'planning',
+        project.start_date || null,
+        project.end_date || null,
+        project.remarks || '',
+        project.dev || '',
+        project.test || '',
+        project.ops || '',
+        project.release_date || null,
+        project.docs_url || '',
+        id
+      ]
+    );
+    return await this.getById(id);
   },
 
-  update(id, project) {
-    const db = getDb();
-    if (!db) return null;
-    
-    const stmt = db.prepare(`
-      UPDATE projects 
-      SET name = ?, type = ?, description = ?, status = ?, start_date = ?, end_date = ?, 
-          remarks = ?, dev = ?, test = ?, ops = ?, release_date = ?, docs_url = ?
-      WHERE id = ?
-    `);
-    stmt.run([
-      project.name,
-      project.type || 'general',
-      project.description || '',
-      project.status || 'planning',
-      project.start_date || null,
-      project.end_date || null,
-      project.remarks || '',
-      project.dev || '',
-      project.test || '',
-      project.ops || '',
-      project.release_date || null,
-      project.docs_url || '',
-      id
-    ]);
-    stmt.free();
-    saveDb();
-    return this.getById(id);
-  },
-
-  delete(id) {
+  async delete(id) {
     const db = getDb();
     if (!db) return null;
     
     // Delete all tasks in this project
-    db.run('DELETE FROM tasks WHERE project_id = ?', [id]);
+    await db.exec('DELETE FROM tasks WHERE project_id = $1', [id]);
     // Delete the project
-    const stmt = db.prepare('DELETE FROM projects WHERE id = ?');
-    stmt.run([id]);
-    stmt.free();
-    saveDb();
+    await db.exec('DELETE FROM projects WHERE id = $1', [id]);
     return { success: true };
   },
 
-  updateSortOrder(projectOrders) {
+  async updateSortOrder(projectOrders) {
     const db = getDb();
     if (!db) return null;
     
     for (const { id, sort_order } of projectOrders) {
-      const stmt = db.prepare('UPDATE projects SET sort_order = ? WHERE id = ?');
-      stmt.run([sort_order, id]);
-      stmt.free();
+      await db.exec(
+        'UPDATE projects SET sort_order = $1 WHERE id = $2',
+        [sort_order, id]
+      );
     }
-    saveDb();
     return { success: true };
   }
 };
