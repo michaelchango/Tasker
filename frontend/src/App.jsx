@@ -1,7 +1,103 @@
 import { useState, useEffect, createContext, useContext, useRef } from 'react';
 import { translations } from './i18n';
 import * as api from './api';
+import DatePicker from 'react-datepicker';
+import { zhCN, enUS } from 'date-fns/locale';
+import 'react-datepicker/dist/react-datepicker.css';
 import './App.css';
+
+// helper for custom header in react-datepicker
+export function getMonthNames(lang = 'zh') {
+  return lang === 'zh'
+    ? ['一月','二月','三月','四月','五月','六月','七月','八月','九月','十月','十一月','十二月']
+    : ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+}
+
+// format a date object to yyyy-MM-dd using local components (avoids timezone shift)
+export function formatLocalDate(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+// reusable date picker field component
+function DatePickerField({ label, value, onChange, placeholder, locale, renderHeader }) {
+  // convert stored yyyy-MM-dd string to a Date in local zone
+  const selectedDate = value
+    ? (() => {
+        const [y, m, d] = value.split('-');
+        return new Date(y, Number(m) - 1, Number(d));
+      })()
+    : null;
+
+  return (
+    <div className="form-group">
+      <label>{label}</label>
+      <DatePicker
+        selected={selectedDate}
+        onChange={(date) => onChange(date ? formatLocalDate(date) : '')}
+        locale={locale}
+        dateFormat="yyyy-MM-dd"
+        placeholderText={placeholder}
+        className="date-picker-input"
+        wrapperClassName="date-picker-wrapper"
+        showYearDropdown
+        scrollableYearDropdown
+        yearDropdownItemNumber={10}
+        renderCustomHeader={renderHeader}
+        isClearable
+      />
+    </div>
+  );
+}
+
+
+function renderCustomHeader({
+  date,
+  changeYear,
+  changeMonth,
+  decreaseMonth,
+  increaseMonth,
+  prevMonthButtonDisabled,
+  nextMonthButtonDisabled
+}) {
+  const currentYear = date.getFullYear();
+  // show only 2020 through 2040 in the year dropdown
+  const MIN_YEAR = 2020;
+  const MAX_YEAR = 2040;
+  const yearRange = [];
+  for (let y = MIN_YEAR; y <= MAX_YEAR; y++) {
+    yearRange.push(y);
+  }
+
+  // determine language for month names (read from localStorage which is kept in sync by LangProvider)
+  const lang = localStorage.getItem('lang') || 'zh';
+  const monthNames = getMonthNames(lang);
+
+  return (
+    <div className="datepicker-header">
+      <button type="button" onClick={decreaseMonth} disabled={prevMonthButtonDisabled}>&lt;</button>
+      <select
+        value={currentYear}
+        onChange={(e) => changeYear(Number(e.target.value))}
+      >
+        {yearRange.map((y) => (
+          <option key={y} value={y}>{y}</option>
+        ))}
+      </select>
+      <select
+        value={date.getMonth()}
+        onChange={(e) => changeMonth(Number(e.target.value))}
+      >
+        {monthNames.map((m, idx) => (
+          <option key={m} value={idx}>{m}</option>
+        ))}
+      </select>
+      <button type="button" onClick={increaseMonth} disabled={nextMonthButtonDisabled}>&gt;</button>
+    </div>
+  );
+}
 
 // Auth Context
 const AuthContext = createContext(null);
@@ -219,6 +315,12 @@ function MainLayout() {
   const [tasks, setTasks] = useState([]);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [dateLocale, setDateLocale] = useState(enUS);
+
+  // Detect language for date picker
+  useEffect(() => {
+    setDateLocale(lang === 'zh' ? zhCN : enUS);
+  }, [lang]);
 
   // Modals
   const [showSpaceModal, setShowSpaceModal] = useState(false);
@@ -241,9 +343,44 @@ function MainLayout() {
     return saved ? parseInt(saved, 10) : null;
   });
 
+  // clear state when user logs out
+  useEffect(() => {
+    if (!user) {
+      setSpaces([]);
+      setSelectedSpace(null);
+      setProjects([]);
+      setSelectedProject(null);
+      setTasks([]);
+      setPreviewSpaces([]);
+      setPreviewProjects([]);
+      setDraggedSpace(null);
+      setDraggedProject(null);
+      setSidebarCollapsed(false);
+      setShowMobileMenu(false);
+      setShowSpaceModal(false);
+      setShowProjectModal(false);
+      setShowTaskModal(false);
+      setEditingSpace(null);
+      setEditingProject(null);
+      setEditingTask(null);
+      setShowConfirm(null);
+    }
+  }, [user]);
+
   // Load spaces on mount
   useEffect(() => {
-    if (user) loadSpaces();
+    if (user) {
+      loadSpaces();
+    } else {
+      // clear state when logged out
+      setSpaces([]);
+      setSelectedSpace(null);
+      setProjects([]);
+      setSelectedProject(null);
+      setTasks([]);
+      localStorage.removeItem('selectedSpaceId');
+      localStorage.removeItem('selectedProjectId');
+    }
   }, [user]);
 
   // Load projects when space changes
@@ -383,6 +520,15 @@ function MainLayout() {
     setShowConfirm(null);
   }
 
+  // due date state for task modal
+  const [taskDueDate, setTaskDueDate] = useState('');
+
+  useEffect(() => {
+    if (showTaskModal) {
+      setTaskDueDate(editingTask?.due_date?.split('T')[0] || '');
+    }
+  }, [showTaskModal, editingTask]);
+
   const getStatusLabel = (status) => {
     const statusMap = {
       'planning': t.projectStatusPlanning,
@@ -422,53 +568,54 @@ function MainLayout() {
                     className={`space-item ${selectedSpace?.id === space.id ? 'active' : ''} ${dragOverSpaceIndex === index ? 'drag-over' : ''} ${draggedSpace?.id === space.id ? 'dragging' : ''}`}
                     onClick={() => setSelectedSpace(space)}
                     draggable
-                    onDragStart={(e) => { const idx = spaces.findIndex(s => s.id === space.id); draggedSpaceOriginalIndex.current = idx; setDraggedSpace(space); setPreviewSpaces([...spaces]); setDragOverSpaceIndex(idx); e.dataTransfer.effectAllowed = 'move'; }}
+                    onDragStart={(e) => { 
+                      const idx = spaces.findIndex(s => s.id === space.id); 
+                      draggedSpaceOriginalIndex.current = idx; 
+                      setDraggedSpace(space); 
+                      setDragOverSpaceIndex(idx); 
+                      e.dataTransfer.effectAllowed = 'move'; 
+                    }}
                     onDragOver={(e) => { 
                       e.preventDefault(); 
                       if (draggedSpace && space.id !== draggedSpace.id) {
-                        const originalIndex = draggedSpaceOriginalIndex.current;
-                        const dropIndex = spaces.findIndex(s => s.id === space.id);
+                        const dropIndex = (previewSpaces.length > 0 ? previewSpaces : spaces).findIndex(s => s.id === space.id);
                         
-                        // Only update if different from current hover position
                         if (dragOverSpaceIndex !== dropIndex) {
                           setDragOverSpaceIndex(dropIndex);
                           
-                          // Create preview by moving item from original position to drop position
-                          const newSpaces = [...spaces];
-                          newSpaces.splice(originalIndex, 1);
-                          newSpaces.splice(dropIndex, 0, draggedSpace);
-                          setPreviewSpaces(newSpaces);
+                          // Calculate new position in preview array
+                          const current = [...(previewSpaces.length > 0 ? previewSpaces : spaces)];
+                          // Find where dragged item is currently in preview
+                          const currentDraggedIndex = current.findIndex(s => s.id === draggedSpace.id);
+                          // Remove from current position
+                          current.splice(currentDraggedIndex, 1);
+                          // Insert at new position
+                          current.splice(dropIndex, 0, draggedSpace);
+                          setPreviewSpaces(current);
                         }
                       }
                       e.dataTransfer.dropEffect = 'move'; 
                     }}
                     onDragLeave={() => {}}
-                    onDrop={(e) => {
+                    onDrop={(e) => { 
                       e.preventDefault();
                       setDragOverSpaceIndex(null);
                       
-                      // Get the dragged item's original index from ref
-                      const originalIndex = draggedSpaceOriginalIndex.current;
-                      const currentDropIndex = dragOverSpaceIndex;
-                      
-                      // If dropped on original position, keep current order (no change)
-                      if (originalIndex === currentDropIndex) {
-                        setDraggedSpace(null);
-                        setPreviewSpaces([]);
-                        return;
+                      if (previewSpaces.length > 0) {
+                        setSpaces(previewSpaces);
+                        // Save sort order
+                        const spaceOrders = previewSpaces.map((s, index) => ({ id: s.id, sort_order: index }));
+                        api.updateSpaceSortOrder(spaceOrders);
                       }
-                      
-                      // Apply the preview order
-                      const finalSpaces = previewSpaces.length > 0 ? previewSpaces : spaces;
-                      setSpaces(finalSpaces);
-                      // Save sort order
-                      const spaceOrders = finalSpaces.map((s, index) => ({ id: s.id, sort_order: index }));
-                      api.updateSpaceSortOrder(spaceOrders);
                       
                       setDraggedSpace(null);
                       setPreviewSpaces([]);
                     }}
-                    onDragEnd={() => { draggedSpaceOriginalIndex.current = null; setDraggedSpace(null); setDragOverSpaceIndex(null); setPreviewSpaces([]); }}
+                    onDragEnd={() => { 
+                      setDraggedSpace(null); 
+                      setDragOverSpaceIndex(null); 
+                      setPreviewSpaces([]); 
+                    }}
                   >
                     <span className="space-name">{space.name}</span>
                     <div className="space-actions">
@@ -521,50 +668,54 @@ function MainLayout() {
                     className={`project-card ${selectedProject?.id === project.id ? 'selected' : ''} ${dragOverProjectIndex === index ? 'drag-over' : ''} ${draggedProject?.id === project.id ? 'dragging' : ''}`}
                     onClick={() => setSelectedProject(project)}
                     draggable
-                    onDragStart={(e) => { const idx = projects.findIndex(p => p.id === project.id); draggedProjectOriginalIndex.current = idx; setDraggedProject(project); setPreviewProjects([...projects]); setDragOverProjectIndex(idx); e.dataTransfer.effectAllowed = 'move'; }}
+                    onDragStart={(e) => { 
+                      const idx = projects.findIndex(p => p.id === project.id); 
+                      draggedProjectOriginalIndex.current = idx; 
+                      setDraggedProject(project); 
+                      setDragOverProjectIndex(idx); 
+                      e.dataTransfer.effectAllowed = 'move'; 
+                    }}
                     onDragOver={(e) => { 
                       e.preventDefault(); 
                       if (draggedProject && project.id !== draggedProject.id) {
-                        const originalIndex = draggedProjectOriginalIndex.current;
-                        const dropIndex = projects.findIndex(p => p.id === project.id);
+                        const dropIndex = (previewProjects.length > 0 ? previewProjects : projects).findIndex(p => p.id === project.id);
                         
-                        // Only update if different from current hover position
                         if (dragOverProjectIndex !== dropIndex) {
                           setDragOverProjectIndex(dropIndex);
                           
-                          // Create preview by moving item from original position to drop position
-                          const newProjects = [...projects];
-                          newProjects.splice(originalIndex, 1);
-                          newProjects.splice(dropIndex, 0, draggedProject);
-                          setPreviewProjects(newProjects);
+                          // Calculate new position in preview array
+                          const current = [...(previewProjects.length > 0 ? previewProjects : projects)];
+                          // Find where dragged item is currently in preview
+                          const currentDraggedIndex = current.findIndex(p => p.id === draggedProject.id);
+                          // Remove from current position
+                          current.splice(currentDraggedIndex, 1);
+                          // Insert at new position
+                          current.splice(dropIndex, 0, draggedProject);
+                          setPreviewProjects(current);
                         }
                       }
                       e.dataTransfer.dropEffect = 'move'; 
                     }}
                     onDragLeave={() => {}}
-                    onDrop={(e) => {
+                    onDrop={(e) => { 
                       e.preventDefault();
                       setDragOverProjectIndex(null);
                       
-                      // Get the dragged item's original index
-                      const originalIndex = projects.findIndex(p => p.id === draggedProject.id);
-                      const currentDropIndex = dragOverProjectIndex;
-                      
-                      // If dropped on original position, keep current order (no change)
-                      if (originalIndex === currentDropIndex) {
-                        // Do nothing to projects - keep current order
-                      } else {
-                        // Apply the preview order
-                        const finalProjects = previewProjects.length > 0 ? previewProjects : projects;
-                        setProjects(finalProjects);
-                        const projectOrders = finalProjects.map((p, index) => ({ id: p.id, sort_order: index }));
+                      if (previewProjects.length > 0) {
+                        setProjects(previewProjects);
+                        // Save sort order
+                        const projectOrders = previewProjects.map((p, index) => ({ id: p.id, sort_order: index }));
                         api.updateProjectSortOrder(projectOrders);
                       }
                       
                       setDraggedProject(null);
                       setPreviewProjects([]);
                     }}
-                    onDragEnd={() => { draggedProjectOriginalIndex.current = null; setDraggedProject(null); setDragOverProjectIndex(null); setPreviewProjects([]); }}
+                    onDragEnd={() => { 
+                      setDraggedProject(null); 
+                      setDragOverProjectIndex(null); 
+                      setPreviewProjects([]); 
+                    }}
                   >
                     <div className="project-card-header">
                       <h3>{project.name}</h3>
@@ -595,6 +746,7 @@ function MainLayout() {
                   <div className="task-table">
                     <div className="task-row header">
                       <span>{t.taskName}</span>
+                      <span>{t.taskDescription || '描述'}</span>
                       <span>{t.taskPriority}</span>
                       <span>{t.taskStatus}</span>
                       <span>{t.dueDate}</span>
@@ -603,9 +755,20 @@ function MainLayout() {
                     {tasks.map(task => (
                       <div key={task.id} className="task-row">
                         <span className="task-name">{task.name}</span>
-                        <span className={`priority ${task.priority}`}>{task.priority === 'low' ? t.taskPriorityLow : task.priority === 'high' ? t.taskPriorityHigh : t.taskPriorityMedium}</span>
+                        <span className="task-description">
+                          {task.description || '-'}
+                        </span>
+                        {task.priority && (
+                          <span className={`priority ${task.priority}`}>
+                            {task.priority === 'low' ? t.taskPriorityLow : task.priority === 'high' ? t.taskPriorityHigh : t.taskPriorityMedium}
+                          </span>
+                        )}
                         <span className="status">{getStatusLabel(task.status)}</span>
-                        <span>{task.due_date ? new Date(task.due_date).toLocaleDateString() : '-'}</span>
+                        <span>{task.due_date ? (() => {
+                          const [y, m, d] = task.due_date.split('-');
+                          const dt = new Date(y, Number(m) - 1, Number(d));
+                          return dt.toLocaleDateString();
+                        })() : '-'}</span>
                         <div className="task-actions">
                           <button onClick={() => { setEditingTask(task); setShowTaskModal(true); }}>✏️</button>
                           <button onClick={() => setShowConfirm({ type: 'task', id: task.id })}>🗑️</button>
@@ -722,12 +885,12 @@ function MainLayout() {
               description: formData.get('description'),
               priority: formData.get('priority'),
               status: formData.get('status'),
-              due_date: formData.get('due_date') || null
+              due_date: taskDueDate || null
             };
             editingTask ? handleUpdateTask(task) : handleCreateTask(task);
           }}>
             <div className="form-group">
-              <label>{t.taskName}</label>
+              <label className="required">{t.taskName}</label>
               <input name="name" defaultValue={editingTask?.name} required />
             </div>
             <div className="form-group">
@@ -752,10 +915,15 @@ function MainLayout() {
                 </select>
               </div>
             </div>
-            <div className="form-group">
-              <label>{t.dueDate}</label>
-              <input type="date" name="due_date" defaultValue={editingTask?.due_date?.split('T')[0]} />
-            </div>
+            {/* primary due date */}
+            <DatePickerField
+              label={t.dueDate}
+              value={taskDueDate}
+              onChange={setTaskDueDate}
+              placeholder={t.selectDate || '请选择'}
+              locale={dateLocale}
+              renderHeader={renderCustomHeader}
+            />
             <div className="form-actions">
               <button type="button" className="btn-cancel" onClick={() => setShowTaskModal(false)}>{t.cancel}</button>
               <button type="submit" className="btn-primary">{t.save}</button>

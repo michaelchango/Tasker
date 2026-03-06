@@ -1,4 +1,7 @@
-import { useState, useEffect } from 'react';
+youort { useState, useEffect } from 'react';
+import DatePicker from 'react-datepicker';
+import { zhCN, enUS } from 'date-fns/locale';
+import 'react-datepicker/dist/react-datepicker.css';
 
 function TaskForm({ task, onSubmit, onClose, t }) {
   const [formData, setFormData] = useState({
@@ -7,6 +10,14 @@ function TaskForm({ task, onSubmit, onClose, t }) {
     priority: 'medium',
     due_date: ''
   });
+  
+  const [locale, setLocale] = useState(enUS);
+
+  useEffect(() => {
+    // 根据当前语言设置日期选择器语言
+    const isChinese = navigator.language.includes('zh') || t.cancel === '取消';
+    setLocale(isChinese ? zhCN : enUS);
+  }, [t]);
 
   useEffect(() => {
     if (task) {
@@ -30,6 +41,26 @@ function TaskForm({ task, onSubmit, onClose, t }) {
     setFormData(prev => ({ ...prev, [name]: value }));
   }
 
+  // format a Date object to yyyy-MM-dd without timezone shifts
+  function formatLocalDate(date) {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
+  function handleDateChange(date) {
+    const dateStr = date ? formatLocalDate(date) : '';
+    setFormData(prev => ({ ...prev, due_date: dateStr }));
+  }
+
+  const selectedDate = formData.due_date
+    ? (() => {
+        const [y, m, d] = formData.due_date.split('-');
+        return new Date(y, Number(m) - 1, Number(d));
+      })()
+    : null;
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()}>
@@ -40,7 +71,7 @@ function TaskForm({ task, onSubmit, onClose, t }) {
         <form onSubmit={handleSubmit}>
           <div className="modal-body">
             <div className="form-group">
-              <label htmlFor="title">{t.title}</label>
+              <label htmlFor="title" className="required">{t.title}</label>
               <input
                 type="text"
                 id="title"
@@ -77,15 +108,37 @@ function TaskForm({ task, onSubmit, onClose, t }) {
                 </select>
               </div>
               <div className="form-group">
-                <label htmlFor="due_date">{t.dueDate}</label>
-                <input
-                  type="date"
-                  id="due_date"
-                  name="due_date"
-                  value={formData.due_date}
-                  onChange={handleChange}
+                <label htmlFor="test_date">测试日期</label>
+                <DatePicker
+                  id="test_date"
+                  selected={null}
+                  onChange={() => {}}
+                  locale={locale}
+                  dateFormat="yyyy-MM-dd"
+                  placeholderText="点击测试"
+                  className="date-picker-input"
+                  wrapperClassName="date-picker-wrapper"
+                  showYearDropdown
+                  scrollableYearDropdown
+                  yearDropdownItemNumber={10}
                 />
               </div>
+            </div>
+            <div className="form-group">
+              <label htmlFor="due_date">{t.dueDate}</label>
+              <DatePicker
+                id="due_date"
+                selected={selectedDate}
+                onChange={handleDateChange}
+                locale={locale}
+                dateFormat="yyyy-MM-dd"
+                placeholderText={t.selectDate || '请选择'}
+                className="date-picker-input"
+                wrapperClassName="date-picker-wrapper"
+                showYearDropdown
+                scrollableYearDropdown
+                yearDropdownItemNumber={10}
+              />
             </div>
           </div>
           <div className="form-actions">

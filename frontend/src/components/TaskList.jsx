@@ -22,12 +22,16 @@ function TaskList({ tasks, onToggle, onEdit, onDelete, t }) {
           <div className="task-content" onClick={() => onEdit(task)}>
             <div className="task-title">{task.title}</div>
             <div className="task-meta">
-              {task.due_date && (
-                <span>📅 {new Date(task.due_date).toLocaleDateString()}</span>
+              {task.due_date && (() => {
+                const [y, m, d] = task.due_date.split('-');
+                const dt = new Date(y, Number(m) - 1, Number(d));
+                return <span>📅 {dt.toLocaleDateString()}</span>;
+              })()}
+              {task.priority && (
+                <span className={`priority-badge ${task.priority}`}>
+                  {t[task.priority] || task.priority}
+                </span>
               )}
-              <span className={`priority-badge ${task.priority || 'medium'}`}>
-                {t[task.priority] || task.priority || t.medium}
-              </span>
             </div>
           </div>
           <div className="task-actions">

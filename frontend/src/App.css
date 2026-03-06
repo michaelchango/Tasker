@@ -118,6 +118,13 @@ body {
   box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
 }
 
+/* previously added placeholder rules removed since dropdown now defaults to medium */
+/* indicate required fields with a red asterisk */
+.form-group label.required::after {
+  content: ' *';
+  color: var(--danger);
+}
+
 .error-msg {
   color: var(--danger);
   font-size: 0.875rem;
@@ -556,7 +563,7 @@ body {
 
 .task-row {
   display: grid;
-  grid-template-columns: 1fr 100px 120px 120px 80px;
+  grid-template-columns: 320px 1fr 100px 120px 120px 90px;
   gap: 16px;
   padding: 16px 20px;
   align-items: center;
@@ -577,6 +584,15 @@ body {
 
 .task-name {
   font-weight: 500;
+}
+
+.task-description {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 150px;
 }
 
 .priority {
@@ -667,6 +683,7 @@ body {
   max-height: 90vh;
   overflow-y: auto;
   box-shadow: var(--shadow-lg);
+  position: relative;
 }
 
 .modal h2 {
@@ -703,6 +720,193 @@ body {
   background: var(--bg-primary);
   color: var(--text-primary);
   transition: all 0.2s;
+}
+
+.form-group input[type="text"] {
+  cursor: text;
+}
+
+.form-group input[type="date"] {
+  cursor: pointer;
+}
+
+
+
+.date-picker-wrapper {
+  width: 100%;
+}
+
+.date-picker-input {
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.date-picker-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+}
+
+.react-datepicker {
+  font-family: inherit;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+}
+
+.react-datepicker__header {
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.react-datepicker__current-month,
+.react-datepicker__day-name,
+.react-datepicker__day {
+  color: var(--text-primary);
+}
+
+.react-datepicker__day {
+  /* make every day cell circular for consistency */
+  border-radius: 50%;
+}
+
+.react-datepicker__day:not([aria-disabled=true]):hover {
+  /* override default square hover background */
+  background-color: var(--bg-tertiary) !important;
+  border-radius: 50% !important;
+}
+
+.react-datepicker__day--selected,
+.react-datepicker__day--in-range {
+  /* selected day: primary background with white text */
+  background: var(--primary) !important;
+  color: white !important;
+  border-radius: 50%;
+}
+
+/* when today is part of a range or being keyboard-selected, keep primary-colour text and no background */
+.react-datepicker__day--today.react-datepicker__day--in-range,
+.react-datepicker__day--today.react-datepicker__day--in-selecting-range,
+.react-datepicker__day--today.react-datepicker__day--keyboard-selected {
+  background: none !important;
+  color: var(--primary) !important;
+  font-weight: bold !important;
+}
+
+/* when today is actually selected, show normal selected background */
+.react-datepicker__day--today.react-datepicker__day--selected {
+  background: var(--primary) !important;
+  color: white !important;
+  font-weight: bold !important;
+}
+
+/* today's date in picker: use full primary color and no transparency */
+.react-datepicker__day--today {
+  background: none !important;
+  color: var(--primary) !important;
+  font-weight: bold !important;
+  opacity: 1 !important;
+}
+.react-datepicker__day--today:not(.react-datepicker__day--selected) {
+  /* ensure non-selected today also full color */
+  color: var(--primary) !important;
+  opacity: 1 !important;
+}
+
+.react-datepicker__day--today:hover {
+  background: var(--bg-tertiary) !important;
+  border-radius: 50% !important;
+}
+/* when a date is selected, keyboard focus should enhance it; normal selected state */
+.react-datepicker__day--selected.react-datepicker__day--keyboard-selected {
+  background: var(--primary) !important;
+  color: white !important;
+  border-radius: 50% !important;
+  font-weight: bold !important;
+  opacity: 1 !important;
+}
+
+/* only apply today's style to actual today (not just keyboard-selected same number) */
+.react-datepicker__day--keyboard-selected:not(.react-datepicker__day--selected) {
+  background: none !important;
+  color: var(--text-primary) !important;
+  font-weight: normal !important;
+  border-radius: 50% !important;
+}
+.react-datepicker__day--keyboard-selected:not(.react-datepicker__day--selected).react-datepicker__day--today {
+  background: none !important;
+  color: var(--primary) !important;
+  font-weight: bold !important;
+  border-radius: 50% !important;
+}
+
+.react-datepicker__navigation-icon::before {
+  border-color: var(--text-secondary);
+}
+
+/* custom header controls for month/year selection */
+.datepicker-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px;
+}
+
+.datepicker-header button {
+  background: none;
+  border: none;
+  font-size: 1rem;
+  cursor: pointer;
+  color: var(--text-primary);
+  padding: 4px 8px;
+}
+
+.datepicker-header select {
+  padding: 4px 6px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.react-datepicker__navigation:hover *::before {
+  border-color: var(--text-primary);
+}
+
+/* lighter clear (×) icon in datepicker */
+.react-datepicker__close-icon,
+.react-datepicker__close-icon::after {
+  color: #ccc; /* light gray */
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+.react-datepicker__close-icon:hover,
+.react-datepicker__close-icon:hover::after {
+  opacity: 0.8;
+}
+.react-datepicker__year-dropdown,
+.react-datepicker__month-dropdown {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+}
+
+.react-datepicker__year-option,
+.react-datepicker__month-option {
+  color: var(--text-primary);
+}
+
+.react-datepicker__year-option:hover,
+.react-datepicker__month-option:hover {
+  background: var(--bg-tertiary);
 }
 
 .form-group input:focus,
@@ -803,7 +1007,7 @@ body {
   }
   
   .task-row {
-    grid-template-columns: 1fr 80px 100px 100px 60px;
+    grid-template-columns: 220px 1fr 80px 100px 100px 70px;
     gap: 12px;
     padding: 12px 16px;
     font-size: 0.875rem;
@@ -853,7 +1057,7 @@ body {
   }
   
   .task-row {
-    grid-template-columns: 1fr 70px 80px 60px;
+    grid-template-columns: 160px 1fr 60px 80px 80px 60px;
     gap: 8px;
     padding: 12px;
     font-size: 0.813rem;
@@ -864,7 +1068,8 @@ body {
   }
   
   .task-row > span:nth-child(3),
-  .task-row > span:nth-child(4) {
+  .task-row > span:nth-child(4),
+  .task-row > span:nth-child(5) {
     display: none;
   }
   

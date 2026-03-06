@@ -100,7 +100,7 @@ d:/workspace/Tasker/
 | project_id | INTEGER | Foreign key to projects |
 | name | TEXT NOT NULL | Task name |
 | description | TEXT | Task description |
-| priority | TEXT | 'low', 'medium', 'high' |
+| priority | TEXT | 'low', 'medium', 'high' (no default; user must choose) |
 | due_date | TEXT | Due date |
 | status | TEXT | 'todo', 'in_progress', 'done' |
 | created_at | TEXT | Timestamp |
